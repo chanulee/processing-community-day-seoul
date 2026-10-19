@@ -1,0 +1,120 @@
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: #000;
+  overflow: hidden;
+  font-family: -apple-system, Helvetica, Arial, sans-serif;
+}
+
+/* The frame sizes the page, so the holder follows it and the backing store stays
+   1280x720 — world coordinates and framing are untouched. */
+#sketch-holder {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1280 / 720;
+  margin: 0 auto;
+}
+
+/* p5 writes the createCanvas() size inline on the element, so only !important
+   lets the canvas follow the frame. */
+#sketch-holder canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* DOM controls that float over the canvas.
+   update.js positions these; this is just look-and-feel. */
+#text-input {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  width: min(220px, 45vw);
+  padding: 8px 10px;
+  font-size: 14px;
+  color: #000;
+  background: #fff;
+  border: none;
+  outline: none;
+  z-index: 10;
+}
+
+#text-input:focus {
+  outline: 4px solid rgb(255, 106, 100);
+}
+
+#debug-toggle {
+  display: none;
+}
+
+#complexity-slider {
+  position: absolute;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(520px, 80%);
+  z-index: 10;
+  cursor: pointer;
+  appearance: none;
+  background: none;
+}
+
+/* Chrome, Safari, Opera, and Edge */
+#complexity-slider::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 4px;
+  background: #fff;
+  border-radius: 0px;
+}
+
+/* Firefox */
+#complexity-slider::-moz-range-track {
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  background: #fff;
+  border-radius: 0px;
+}
+
+/* Chrome, Safari, Opera, and Edge */
+#complexity-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  margin-top: -4px;
+  height: 14px;
+  width: 22px;
+  background: rgb(255, 106, 100);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+}
+
+/* Firefox */
+#complexity-slider::-moz-range-thumb {
+  appearance: none;
+  border: none;
+  height: 14px;
+  width: 22px;
+  background: #ff5722;
+  border-radius: 0px;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+}
+
+/* vertex-debug readout (toggled with `d`) */
+#debug-hud {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  padding: 8px 11px;
+  font:
+    12px/1.6 ui-monospace,
+    "SF Mono",
+    Menlo,
+    monospace;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.62);
+  border-radius: 4px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 10;
+  display: none;
+}
