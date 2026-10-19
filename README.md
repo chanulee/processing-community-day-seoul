@@ -47,6 +47,7 @@ reference/          Processing 25 study + still references
 | `splat-field` | Splat Field | Anisotropic Gaussian-style quads assembling the letterforms |
 | `gravity-letters` | Gravity Letters | Extruded 3D letters with rigid-body physics and mixed shaders |
 | `wave-type` | Wave Type | Arc-length sine lines with a rippling Inter variable weight |
+| `pretext-flow` | Pretext Flow | One ABC Areal paragraph; growing letters reflow the text live via Pretext instead of popping over it |
 
 ## Adding an experiment
 
@@ -91,5 +92,7 @@ export default {
 - PCD @ Seoul is organized by Creative Computing Group; this repo is an independent production workspace unless otherwise noted per experiment.
 - [p5.js](https://p5js.org/) 1.11.13 — LGPL. See `vendor/p5.LICENSE.txt`.
 - [GSAP](https://gsap.com/) 3.15 — [standard no-charge license](https://gsap.com/standard-license). See `vendor/gsap.README.md`.
+- [Pretext](https://github.com/chenglou/pretext) 1.0.0 — MIT. See `vendor/pretext/LICENSE`.
+- [ABC Areal](https://abcdinamo.com/typefaces/areal) (Dinamo) is commercial and is **not** in the repo: `app/style.css` loads it from a local install via `local()` and falls back to Inter.
 - Fonts (SIL OFL): [Archivo Black](https://fonts.google.com/specimen/Archivo+Black), [Space Mono](https://fonts.google.com/specimen/Space+Mono), [Inter](https://rsms.me/inter/). License files sit next to the fonts in `vendor/fonts/`.
 - Processing 25 reference sketch: [Kiel Danger Mutschelknaus](https://www.kielm.com/) / [Processing Foundation](https://processingfoundation.org/). See [`reference/README.md`](reference/README.md).

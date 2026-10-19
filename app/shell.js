@@ -3,8 +3,9 @@ import typeFill from '../experiments/01-type-fill.js';
 import splatField from '../experiments/05-splat-field.js';
 import gravityLetters from '../experiments/07-gravity-letters.js';
 import waveType from '../experiments/08-wave-type.js';
+import pretextFlow from '../experiments/09-pretext-flow.js';
 
-const EXPERIMENTS = [typeFill, splatField, gravityLetters, waveType];
+const EXPERIMENTS = [typeFill, splatField, gravityLetters, waveType, pretextFlow];
 
 const $ = (id) => document.getElementById(id);
 const holder = $('canvas-holder');

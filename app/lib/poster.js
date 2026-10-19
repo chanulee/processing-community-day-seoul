@@ -19,6 +19,7 @@ export const FONT = {
   display: '"Archivo Black"',
   mono: '"Space Mono"',
   sans: 'Inter',
+  areal: 'Areal, Inter',
 };
 
 export const FONT_CHOICES = {
@@ -26,6 +27,8 @@ export const FONT_CHOICES = {
   'Inter Black': (size) => `900 ${size}px Inter`,
   'Inter Thin': (size) => `200 ${size}px Inter`,
   'Space Mono': (size) => `700 ${size}px "Space Mono"`,
+  'Areal Bold': (size) => `700 ${size}px Areal, Inter`,
+  'Areal Medium': (size) => `500 ${size}px Areal, Inter`,
 };
 
 export async function loadFonts() {
@@ -36,6 +39,9 @@ export async function loadFonts() {
     '200 100px Inter',
     '400 100px Inter',
     '900 100px Inter',
+    '400 100px Areal',
+    '500 100px Areal',
+    '700 100px Areal',
   ].map((f) => document.fonts.load(f)));
 }
 
