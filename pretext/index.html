@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PCD @ Seoul 2026 — Pretext Layout</title>
+    <link rel="stylesheet" href="style.css" />
+    <script>
+      window.__errors = [];
+      addEventListener('error', (e) => __errors.push(String((e.error && e.error.stack) || e.message)));
+    </script>
+  </head>
+  <body>
+    <div class="app">
+      <main class="stage" id="stage">
+        <canvas id="poster"></canvas>
+        <div class="stage-meta">A2 · 420 × 594 mm · drag a box to move it, its right edge to resize it</div>
+      </main>
+
+      <aside class="panel" aria-label="Layout controls">
+        <header class="panel-head">
+          <div class="brand">PCD @ Seoul 2026 <span>Pretext Layout</span></div>
+        </header>
+
+        <section class="card">
+          <div class="row">
+            <button class="btn primary" id="add">+ Text box</button>
+            <button class="btn" id="dup">Duplicate</button>
+            <button class="btn" id="del">Delete</button>
+          </div>
+          <div class="boxes" id="boxes"></div>
+        </section>
+
+        <section class="card" id="props">
+          <label class="field"><span>Text</span><textarea id="f-text" rows="5"></textarea></label>
+          <label class="field"><span>Size <b id="v-size"></b></span><input type="range" id="f-size" min="10" max="600" step="1" /></label>
+          <label class="field"><span>Leading <b id="v-leading"></b></span><input type="range" id="f-leading" min="0.6" max="2" step="0.01" /></label>
+          <label class="field"><span>Tracking <b id="v-tracking"></b></span><input type="range" id="f-tracking" min="-0.1" max="0.3" step="0.005" /></label>
+          <label class="field"><span>Width <b id="v-w"></b></span><input type="range" id="f-w" min="40" max="1191" step="1" /></label>
+          <div class="field"><span>Weight</span><div class="seg" id="f-weight" data-opts="400,500,700"></div></div>
+          <div class="field"><span>Align</span><div class="seg" id="f-align" data-opts="left,center,right"></div></div>
+          <label class="field inline"><span>Colour</span><input type="color" id="f-color" /></label>
+          <label class="field inline"><span>Flow around data</span><input type="checkbox" id="f-flow" /></label>
+        </section>
+
+        <section class="card">
+          <div class="field"><span>Data layer</span><div class="seg" id="d-layer"></div></div>
+          <p class="hint" id="d-source"></p>
+          <label class="field"><span>Bar height <b id="dv-height"></b></span><input type="range" id="d-height" min="0.1" max="1" step="0.01" /></label>
+          <label class="field inline"><span>Cumulative (growth)</span><input type="checkbox" id="d-cumulative" /></label>
+          <label class="field"><span>Dot scale (people) <b id="dv-scale"></b></span><input type="range" id="d-scale" min="0.2" max="3" step="0.01" /></label>
+          <label class="field"><span>Text clearance <b id="dv-pad"></b></span><input type="range" id="d-pad" min="0" max="60" step="1" /></label>
+          <label class="field"><span>Seed <b id="dv-seed"></b></span><input type="range" id="d-seed" min="1" max="999" step="1" /></label>
+          <label class="field inline"><span>Labels</span><input type="checkbox" id="d-labels" /></label>
+          <label class="field inline"><span>Data ink</span><input type="color" id="d-ink" /></label>
+          <label class="field inline"><span>Data accent</span><input type="color" id="d-accent" /></label>
+        </section>
+
+        <section class="card">
+          <label class="field inline"><span>Background</span><input type="color" id="f-bg" /></label>
+          <label class="field inline"><span>Show box outlines</span><input type="checkbox" id="f-guides" checked /></label>
+          <div class="row">
+            <button class="btn" id="png">PNG</button>
+            <button class="btn" id="reset">Reset</button>
+          </div>
+          <p class="hint">Arrow keys nudge the selected box (Shift = 10px) · Delete removes it</p>
+        </section>
+      </aside>
+    </div>
+    <script type="module" src="main.js"></script>
+  </body>
+</html>

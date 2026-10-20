@@ -18,7 +18,7 @@ export default {
   ],
   params: [
     { type: 'section', label: 'Text' },
-    { key: 'text', type: 'text', label: 'Paragraph', value: COPY, random: false },
+    { key: 'text', type: 'text', label: 'Paragraph', value: COPY },
     { key: 'repeat', type: 'toggle', label: 'Repeat to fill', value: true },
     { key: 'weight', type: 'select', label: 'Weight', options: ['400', '500', '700'], value: '700' },
     { key: 'size', type: 'range', label: 'Base size', min: 20, max: 200, step: 1, value: 74, unit: 'px' },

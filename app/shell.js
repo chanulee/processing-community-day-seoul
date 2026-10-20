@@ -1,11 +1,8 @@
-import { W, H, U, loadFonts } from './lib/poster.js';
-import typeFill from '../experiments/01-type-fill.js';
-import splatField from '../experiments/05-splat-field.js';
-import gravityLetters from '../experiments/07-gravity-letters.js';
-import waveType from '../experiments/08-wave-type.js';
-import pretextFlow from '../experiments/09-pretext-flow.js';
+import { W, H, U, FORMAT, loadFonts } from './lib/poster.js';
+import { Muxer, ArrayBufferTarget } from '../vendor/mp4-muxer.mjs';
 
-const EXPERIMENTS = [typeFill, splatField, gravityLetters, waveType, pretextFlow];
+// The page's entry module (app/lab.js or main/main.js) sets the list before loading the shell.
+const EXPERIMENTS = window.LAB.experiments;
 
 const $ = (id) => document.getElementById(id);
 const holder = $('canvas-holder');
@@ -21,8 +18,10 @@ const run = {
   speed: 1,
   density: 1,
   recorder: null,
+  openGroups: new Set(),
 };
 
+const sizeLabel = () => FORMAT || 'A2 · 420 × 594 mm';
 const storeKey = (exp) => `pcd-lab:${exp.id}`;
 
 function defaults(exp) {
@@ -31,16 +30,28 @@ function defaults(exp) {
   return P;
 }
 
+// An experiment with `persist: false` always opens on its built-in defaults; nothing is read from or written to storage.
 function loadParams(exp) {
   const P = defaults(exp);
+  if (exp.persist === false) return P;
   try {
     const saved = JSON.parse(localStorage.getItem(storeKey(exp)) || '{}');
-    for (const k of Object.keys(saved)) if (k in P) P[k] = saved[k];
+    // An experiment can bump `schema` when its built-in shapes change: saved per-letter values (keys with '_') are then dropped.
+    // `schemaReset` lists other keys (e.g. a default word list) that are dropped the same way.
+    const stale = (saved._schema ?? 0) !== (exp.schema ?? 0);
+    for (const k of Object.keys(saved)) if (k in P && !(stale && (k.includes('_') || exp.schemaReset?.includes(k)))) P[k] = saved[k];
   } catch { /* corrupted storage falls back to defaults */ }
   return P;
 }
 
-const saveParams = () => localStorage.setItem(storeKey(run.exp), JSON.stringify(run.P));
+// Only edits are stored, so changed defaults reach everyone who never touched that control.
+const saveParams = () => {
+  if (run.exp.persist === false) return;
+  const base = defaults(run.exp);
+  const diff = { _schema: run.exp.schema ?? 0 };
+  for (const k of Object.keys(run.P)) if (JSON.stringify(run.P[k]) !== JSON.stringify(base[k])) diff[k] = run.P[k];
+  localStorage.setItem(storeKey(run.exp), JSON.stringify(diff));
+};
 
 function unmount() {
   run.tweens.forEach((t) => t.kill());
@@ -69,6 +80,7 @@ function mount(exp, keepParams = false) {
     get paused() { return run.paused; },
   };
 
+  run.api = api;
   run.p5 = new p5((p) => {
     p.setup = () => {
       p.pixelDensity(run.density);
@@ -123,6 +135,7 @@ function notify(key) {
 function renderNav() {
   const nav = $('exp-list');
   nav.innerHTML = '';
+  nav.hidden = EXPERIMENTS.length < 2;
   EXPERIMENTS.forEach((exp, i) => {
     const b = document.createElement('button');
     b.innerHTML = `<b>${String(i + 1).padStart(2, '0')}</b>${exp.title}`;
@@ -146,10 +159,21 @@ function buildParams(exp) {
   const root = $('params');
   root.innerHTML = '';
   const P = run.P;
+  let into = root; // where controls go: the panel, or the body of a collapsed group
   for (const d of exp.params) {
+    if (d.type === 'group') {
+      // Everything after a group marker lives in a collapsible block (closed until opened, and stays as left).
+      const box = el('details', 'group');
+      box.open = run.openGroups.has(d.label);
+      box.ontoggle = () => { if (box.open) run.openGroups.add(d.label); else run.openGroups.delete(d.label); };
+      box.appendChild(el('summary', '', `<h2>${d.label}</h2>${d.note ? `<p>${d.note}</p>` : ''}`));
+      root.appendChild(box);
+      into = box;
+      continue;
+    }
     if (d.type === 'section') {
       const s = el('div', 'section-head', `<h2>${d.label}</h2>${d.note ? `<p>${d.note}</p>` : ''}`);
-      root.appendChild(s);
+      into.appendChild(s);
       continue;
     }
     const wrap = el('div', 'control');
@@ -231,38 +255,8 @@ function buildParams(exp) {
         wrap.append(presets);
       }
     }
-    root.appendChild(wrap);
+    into.appendChild(wrap);
   }
-}
-
-function randomize() {
-  const exp = run.exp;
-  const P = run.P;
-  let rebuild = false;
-  const changed = [];
-  for (const d of exp.params) {
-    if (!d.key || d.random === false) continue;
-    const before = JSON.stringify(P[d.key]);
-    if (d.type === 'range') {
-      const step = d.step ?? 0.01;
-      const v = d.min + Math.random() * (d.max - d.min);
-      P[d.key] = Number((Math.round(v / step) * step).toFixed(decimals(step)));
-    } else if (d.type === 'toggle') {
-      P[d.key] = Math.random() < 0.5;
-    } else if (d.type === 'select') {
-      P[d.key] = d.options[Math.floor(Math.random() * d.options.length)];
-    } else if (d.type === 'palette' && exp.palettes?.length) {
-      P[d.key] = [...exp.palettes[Math.floor(Math.random() * exp.palettes.length)]];
-    } else continue;
-    if (JSON.stringify(P[d.key]) !== before) {
-      changed.push(d.key);
-      if (d.rebuild) rebuild = true;
-    }
-  }
-  saveParams();
-  buildParams(exp);
-  if (rebuild) mount(exp, true);
-  else changed.forEach((k) => run.inst?.onParam?.(k));
 }
 
 function reset() {
@@ -288,8 +282,11 @@ function download(blob, name) {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = name;
+  a.style.display = 'none';
+  document.body.appendChild(a); // some browsers ignore clicks on detached links
   a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  // Large files (a 120 fps MP4 is tens of MB) are still being read after the click, so keep the URL alive.
+  setTimeout(() => { a.remove(); URL.revokeObjectURL(a.href); }, 120000);
 }
 
 function savePNG() {
@@ -297,15 +294,30 @@ function savePNG() {
   c?.toBlob((b) => download(b, `pcd2026-${run.exp.id}-${stamp()}.png`), 'image/png');
 }
 
+// Video export. Rec starts recording from the current frame and Rec again stops and saves.
+// An experiment that renders deterministically (fixedStep: Two Shapes) is stepped at exactly the chosen fps and
+// encoded to H.264 MP4 with WebCodecs, so the frame rate does not depend on the screen. Anything else is
+// recorded live from the canvas (MP4 where the browser can, else WebM).
+let recFps = 120; // 30 / 60 / 120, from the Video fps buttons when the page has them
+const REC_TYPES = ['video/mp4;codecs=avc1.64002A', 'video/mp4;codecs=avc1.640028', 'video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const yieldNow = () => new Promise((r) => { const ch = new MessageChannel(); ch.port1.onmessage = () => r(); ch.port2.postMessage(0); });
+
 function startRecording() {
+  if (run.inst?.fixedStep && window.VideoEncoder && window.VideoFrame) recordStepped();
+  else recordLive();
+}
+
+function recordLive() {
   const c = holder.querySelector('canvas');
   if (!c || !window.MediaRecorder) return;
-  const type = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find((t) => MediaRecorder.isTypeSupported(t));
+  const type = REC_TYPES.find((t) => MediaRecorder.isTypeSupported(t));
+  const ext = type.startsWith('video/mp4') ? 'mp4' : 'webm';
   const rec = new MediaRecorder(c.captureStream(60), { mimeType: type, videoBitsPerSecond: 16e6 });
   const chunks = [];
   const started = performance.now();
   rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
-  rec.onstop = () => download(new Blob(chunks, { type: 'video/webm' }), `pcd2026-${run.exp.id}-${stamp()}.webm`);
+  rec.onstop = () => download(new Blob(chunks, { type: `video/${ext}` }), `pcd2026-${run.exp.id}-${stamp()}.${ext}`);
   rec.start(250);
   const btn = $('btn-rec');
   btn.classList.add('rec');
@@ -315,20 +327,105 @@ function startRecording() {
   };
 }
 
+// First H.264 level / acceleration combination this browser can encode at the canvas size and the chosen fps.
+async function encoderConfig(w, h) {
+  // About 0.15 bit per pixel: thin lines and trails need far more than the usual 0.05 to stay clean.
+  const bitrate = Math.round(Math.min(120e6, Math.max(8e6, w * h * recFps * 0.15)));
+  for (const hardwareAcceleration of ['no-preference', 'prefer-software']) {
+    for (const codec of ['avc1.640034', 'avc1.640033', 'avc1.640032', 'avc1.64002A']) {
+      const cfg = { codec, width: w, height: h, bitrate, framerate: recFps, latencyMode: 'quality', hardwareAcceleration };
+      try { if ((await VideoEncoder.isConfigSupported(cfg)).supported) return cfg; } catch { /* try the next one */ }
+    }
+  }
+  return null;
+}
+
+async function recordStepped() {
+  const c = holder.querySelector('canvas');
+  const { inst, p5: p, api } = run;
+  const btn = $('btn-rec');
+  const state = { stop: false };
+  run.recorder = state;
+  btn.classList.add('rec');
+  btn.textContent = '■ …';
+  const cfg = await encoderConfig(c.width, c.height);
+  if (!cfg) {
+    console.warn('No H.264 encoder for', c.width, 'x', c.height, '@', recFps, '- recording live instead.');
+    run.recorder = null;
+    btn.classList.remove('rec');
+    btn.textContent = '● Rec';
+    recordLive();
+    return;
+  }
+  const wasPaused = run.paused;
+  p.noLoop(); // frames are drawn by this loop from here on, starting at the current moment
+  const fps = recFps;
+  const dt = run.speed / fps;
+  const muxer = new Muxer({ target: new ArrayBufferTarget(), video: { codec: 'avc', width: c.width, height: c.height }, fastStart: 'in-memory' });
+  let failed = null;
+  const encoder = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: (e) => { failed = e; } });
+  encoder.configure(cfg);
+  const t0 = performance.now();
+  let i = 0;
+  try {
+    while (!state.stop && !failed) {
+      api.clock.dt = dt;
+      api.clock.t += dt;
+      api.clock.frame++;
+      inst.draw();
+      const frame = new VideoFrame(c, { timestamp: Math.round((i * 1e6) / fps), duration: Math.round(1e6 / fps) });
+      encoder.encode(frame, { keyFrame: i % (fps * 2) === 0 }); // a keyframe every 2 s keeps quality from pulsing
+      frame.close();
+      i++;
+      if (i % 12 === 0) btn.textContent = `■ ${(i / fps).toFixed(0)}s`;
+      // Keep the encoder from running far ahead; give up if it stops draining.
+      for (let g = 0; encoder.encodeQueueSize > 8 && !state.stop && !failed; g++) {
+        if (g > 2500) failed = new Error('The video encoder stopped responding');
+        else await sleep(4);
+      }
+      // Pace to real time when rendering is fast enough, and always let the page handle clicks.
+      const ahead = t0 + (i * 1000) / fps - performance.now();
+      if (ahead > 2) await sleep(ahead);
+      else await yieldNow();
+    }
+    if (!failed && i > 0) {
+      await encoder.flush();
+      muxer.finalize();
+      download(new Blob([muxer.target.buffer], { type: 'video/mp4' }), `pcd2026-${run.exp.id}-${stamp()}.mp4`);
+    }
+  } catch (e) {
+    failed = e;
+  } finally {
+    if (encoder.state !== 'closed') { try { encoder.close(); } catch { /* already closed */ } }
+    if (failed) { console.error('Video export failed:', failed); btn.textContent = 'Rec failed'; await sleep(2500); }
+    run.recorder = null;
+    btn.classList.remove('rec');
+    btn.textContent = '● Rec';
+    if (!wasPaused && run.p5 === p) p.loop();
+  }
+}
+
 function stopRecording() {
   if (!run.recorder) return;
-  clearInterval(run.recorder.timer);
-  run.recorder.rec.stop();
-  run.recorder = null;
-  const btn = $('btn-rec');
-  btn.classList.remove('rec');
-  btn.textContent = '● Rec';
+  if (run.recorder.rec) {
+    clearInterval(run.recorder.timer);
+    run.recorder.rec.stop();
+    run.recorder = null;
+    const btn = $('btn-rec');
+    btn.classList.remove('rec');
+    btn.textContent = '● Rec';
+  } else run.recorder.stop = true; // the loop above finishes the file and saves it
 }
+
+document.querySelectorAll('#fps-switch [data-fps]').forEach((b) => {
+  const sync = () => b.classList.toggle('primary', Number(b.dataset.fps) === recFps);
+  b.onclick = () => { if (!run.recorder) { recFps = Number(b.dataset.fps); document.querySelectorAll('#fps-switch [data-fps]').forEach((o) => o.classList.toggle('primary', o === b)); } };
+  sync();
+});
 
 $('btn-play').onclick = () => setPaused(!run.paused);
 $('btn-png').onclick = savePNG;
 $('btn-rec').onclick = () => (run.recorder ? stopRecording() : startRecording());
-$('btn-random').onclick = randomize;
 $('btn-reset').onclick = reset;
 $('btn-copy').onclick = () => navigator.clipboard?.writeText(JSON.stringify({ experiment: run.exp.id, params: run.P }, null, 2));
 $('speed').oninput = (e) => {
@@ -336,10 +433,15 @@ $('speed').oninput = (e) => {
   $('speed-val').textContent = `${run.speed.toFixed(2)}×`;
   gsap.globalTimeline.timeScale(Math.max(0.0001, run.speed));
 };
-$('density').onchange = (e) => {
-  run.density = Number(e.target.value);
-  $('density-val').textContent = `${run.density}×`;
-  $('meta-size').textContent = `A2 · 420 × 594 mm · ${W * run.density} × ${H * run.density}px`;
+// Export size steps: the slider picks an index. 1× is the canvas itself (1080 wide), 4/3 is 2K (1440 wide).
+const DENSITIES = [[1, '1×'], [4 / 3, '2K'], [2, '2×'], [3, '3×']];
+const densityLabel = (d) => `${DENSITIES.find(([v]) => v === d)?.[1] ?? `${d}×`} · ${Math.round(W * d)}×${Math.round(H * d)}`;
+$('density').oninput = (e) => {
+  run.density = DENSITIES[Number(e.target.value)][0];
+  $('density-val').textContent = densityLabel(run.density);
+};
+$('density').onchange = () => {
+  $('meta-size').textContent = `${sizeLabel()} · ${Math.round(W * run.density)} × ${Math.round(H * run.density)}px`;
   mount(run.exp, true);
 };
 
@@ -348,9 +450,9 @@ window.addEventListener('keydown', (e) => {
   const i = EXPERIMENTS.indexOf(run.exp);
   if (e.code === 'Space') { e.preventDefault(); setPaused(!run.paused); }
   else if (e.key === 's' || e.key === 'S') savePNG();
-  else if (e.key === 'r' || e.key === 'R') randomize();
   else if (e.key === 'ArrowRight') mount(EXPERIMENTS[(i + 1) % EXPERIMENTS.length]);
   else if (e.key === 'ArrowLeft') mount(EXPERIMENTS[(i - 1 + EXPERIMENTS.length) % EXPERIMENTS.length]);
+  else run.inst?.keyPressed?.(e);
 });
 
 setInterval(() => {
@@ -370,7 +472,16 @@ window.lab = {
   },
 };
 
-$('meta-size').textContent = `A2 · 420 × 594 mm · ${W}×${H}px`;
+$('meta-size').textContent = `${sizeLabel()} · ${W}×${H}px`;
+// Pages that set a canvas format (index.html) get a 9:16 / 3:4 switch; the page reloads at the new size.
+document.querySelectorAll('#format-switch [data-format]').forEach((b) => {
+  b.classList.toggle('primary', b.dataset.format === FORMAT);
+  b.onclick = () => {
+    if (b.dataset.format === FORMAT) return;
+    try { sessionStorage.setItem('pcd-format', b.dataset.format); } catch { /* storage blocked */ }
+    location.reload();
+  };
+});
 await loadFonts();
 const initial = EXPERIMENTS.find((e) => e.id === location.hash.slice(1)) || EXPERIMENTS[0];
 mount(initial);

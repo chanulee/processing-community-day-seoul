@@ -1,6 +1,8 @@
-// A2 is 420 × 594 mm. At 72 dpi that is 1191 × 1684 px; export density multiplies it.
-export const W = 1191;
-export const H = 1684;
+// Lab experiments are A2 (420 × 594 mm; 72 dpi = 1191 × 1684 px). A page can instead set window.PCD_FORMAT
+// ('9:16' or '3:4') before the modules load, as index.html does. Export density multiplies the size.
+export const FORMATS = { '9:16': [1080, 1920], '3:4': [1080, 1440] };
+export const FORMAT = FORMATS[window.PCD_FORMAT] ? window.PCD_FORMAT : null;
+export const [W, H] = FORMAT ? FORMATS[FORMAT] : [1191, 1684];
 export const U = W / 1000;
 
 export const EVENT = {
@@ -124,12 +126,13 @@ const INFO_X = [0, 0.27, 0.47];
 export const infoHeight = (size = 15 * U) => size * 1.35 * 3;
 
 // Information block shared by all posters so typography stays consistent.
-export function drawInfo(ctx, { layout = 'bottom', color = '#fff', margin = 48 * U, size = 15 * U, font = FONT.mono } = {}) {
+export function drawInfo(ctx, { layout = 'bottom', color = '#fff', margin = 48 * U, size = 15 * U, font = FONT.mono, tracking = 0 } = {}) {
   if (layout === 'none') return 0;
   ctx.save();
   ctx.fillStyle = color;
   ctx.font = `400 ${size}px ${font}`;
   ctx.textBaseline = 'alphabetic';
+  ctx.letterSpacing = `${tracking * size}px`; // tracking in em, e.g. -0.03
   const lh = size * 1.35;
   const blockH = infoHeight(size);
   if (layout === 'bottom' || layout === 'top') {

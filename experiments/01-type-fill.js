@@ -16,7 +16,7 @@ export default {
   ],
   params: [
     { type: 'section', label: 'Text' },
-    { key: 'text', type: 'text', label: 'Lines (separate with /)', value: 'PROCESSING / COMMUNITY / DAY / 2026 / SEOUL / 25 YEARS OF / PROCESSING / SOGANG / ART & / TECHNOLOGY', random: false },
+    { key: 'text', type: 'text', label: 'Lines (separate with /)', value: 'PROCESSING / COMMUNITY / DAY / 2026 / SEOUL / 25 YEARS OF / PROCESSING / SOGANG / ART & / TECHNOLOGY' },
     { key: 'font', type: 'select', label: 'Typeface', options: Object.keys(FONT_CHOICES), value: 'Archivo Black' },
     { key: 'margin', type: 'range', label: 'Margin', min: 0, max: 120, step: 1, value: 44, unit: 'px' },
     { key: 'gutter', type: 'range', label: 'Row gap', min: 0, max: 40, step: 1, value: 8, unit: 'px' },

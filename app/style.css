@@ -2,10 +2,9 @@
 @font-face { font-family: 'Space Mono'; src: url('../vendor/fonts/SpaceMono-Regular.ttf') format('truetype'); font-weight: 400; font-display: block; }
 @font-face { font-family: 'Space Mono'; src: url('../vendor/fonts/SpaceMono-Bold.ttf') format('truetype'); font-weight: 700; font-display: block; }
 @font-face { font-family: 'Inter'; src: url('../vendor/fonts/Inter-Variable.ttf') format('truetype'); font-weight: 100 900; font-display: block; }
-/* ABC Areal (Dinamo) is commercial: loaded from the local install, not committed. Falls back to Inter. */
-@font-face { font-family: 'Areal'; src: local('ABC Areal Regular'), local('ABCAreal-Regular'); font-weight: 400; font-display: block; }
-@font-face { font-family: 'Areal'; src: local('ABC Areal Medium'), local('ABCAreal-Medium'); font-weight: 500; font-display: block; }
-@font-face { font-family: 'Areal'; src: local('ABC Areal Bold'), local('ABCAreal-Bold'); font-weight: 700; font-display: block; }
+@font-face { font-family: 'Areal'; src: url('../vendor/fonts/areal/ABCAreal-Regular.ttf') format('truetype'); font-weight: 400; font-display: block; }
+@font-face { font-family: 'Areal'; src: url('../vendor/fonts/areal/ABCAreal-Medium.ttf') format('truetype'); font-weight: 500; font-display: block; }
+@font-face { font-family: 'Areal'; src: url('../vendor/fonts/areal/ABCAreal-Bold.ttf') format('truetype'); font-weight: 700; font-display: block; }
 
 :root {
   --bg: #0a0c12;
@@ -130,3 +129,64 @@ select, input[type=text] {
   .app { grid-template-columns: 1fr; grid-template-rows: 70vh auto; height: auto; }
   .panel { border-left: 0; border-top: 1px solid var(--line); }
 }
+
+.brand-link {
+  margin-left: 8px;
+  font-size: 11px;
+  opacity: 0.6;
+  color: inherit;
+  text-decoration: none;
+}
+.brand-link:hover { opacity: 1; }
+.exp-list[hidden] { display: none; }
+
+/* Scene timeline (main/two-shapes.js), sits in the stage's bottom margin. */
+.timeline {
+  position: absolute;
+  left: 310px;
+  right: 20px;
+  bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 10px/1 "Space Mono", monospace;
+  color: var(--muted);
+  z-index: 2;
+}
+.timeline[hidden] { display: none; }
+.timeline > button {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 4px;
+  width: 24px;
+  height: 22px;
+  cursor: pointer;
+}
+.tl-track { position: relative; flex: 1; height: 22px; cursor: ew-resize; }
+.tl-segs { display: flex; gap: 2px; height: 100%; }
+.tl-segs button {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, .03);
+  border-radius: 3px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding: 0 4px;
+  font-size: 9px;
+  cursor: pointer;
+}
+.tl-segs button.on { background: rgba(255, 255, 255, .14); color: var(--text); }
+.tl-head { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--text); pointer-events: none; }
+.tl-label { width: 150px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+/* Collapsible parameter group (e.g. Advanced typo) */
+.group { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 10px; }
+.group > summary { cursor: pointer; list-style: none; }
+.group > summary::-webkit-details-marker { display: none; }
+.group > summary h2 { font-size: 13px; font-weight: 600; margin: 0 0 2px; }
+.group > summary h2::before { content: '▸'; display: inline-block; width: 14px; color: var(--muted); }
+.group[open] > summary h2::before { content: '▾'; }
+.group > summary p { margin: 0 0 8px; color: var(--muted); font-size: 11.5px; }
+.group > .control, .group > .section-head { margin-top: 10px; }
