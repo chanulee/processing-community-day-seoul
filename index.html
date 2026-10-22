@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="app/style.css" />
     <script>
       try { window.PCD_FORMAT = sessionStorage.getItem('pcd-format'); } catch { /* storage blocked */ }
-      if (window.PCD_FORMAT !== '3:4') window.PCD_FORMAT = '9:16';
+      if (!['3:4', '4:3', 'A2'].includes(window.PCD_FORMAT)) window.PCD_FORMAT = '9:16';
       window.__errors = [];
       addEventListener('error', (e) => __errors.push(String((e.error && e.error.stack) || e.message)));
       addEventListener('unhandledrejection', (e) => __errors.push(String(e.reason && e.reason.stack || e.reason)));
@@ -28,9 +28,9 @@
         </div>
       </main>
 
-      <aside class="panel" aria-label="Poster parameters">
+      <aside class="panel dev-only" aria-label="Poster parameters">
         <header class="panel-head">
-          <div class="brand">PCD @ Seoul 2026 <span>Two Shapes</span> <a class="brand-link" href="lab.html">Lab →</a></div>
+          <div class="brand">PCD @ Seoul 2026 <span>Two Shapes</span> <a class="brand-link" href="lab.html">Lab →</a> <button class="mode-link" data-mode-set="client">클라이언트 모드 →</button></div>
           <nav class="exp-list" id="exp-list" aria-label="Experiments"></nav>
         </header>
 
@@ -47,6 +47,8 @@
             <div class="row-buttons" id="format-switch">
               <button class="btn" data-format="9:16">9:16</button>
               <button class="btn" data-format="3:4">3:4</button>
+              <button class="btn" data-format="4:3">4:3</button>
+              <button class="btn" data-format="A2">A2</button>
             </div>
           </div>
           <div class="control" data-global>
@@ -74,8 +76,65 @@
             <button class="btn" id="btn-reset">Reset</button>
           </div>
           <button class="btn ghost" id="btn-copy">Copy params JSON</button>
-          <p class="hint">Space 재생/정지 · S PNG</p>
+          <p class="hint">Space 재생/정지 · S PNG · H 텍스트/스폰서 숨기기</p>
         </section>
+      </aside>
+
+      <aside class="panel client-only" aria-label="Client mode">
+        <header class="panel-head">
+          <div class="brand">PCD @ Seoul 2026 <span>Poster Video</span></div>
+        </header>
+
+        <section class="card c-step">
+          <h2><i>1</i>비율 고르기</h2>
+          <div class="c-formats">
+            <button class="btn c-big" data-format="9:16"><b>9:16</b><small>세로 영상 · 1080×1920</small></button>
+            <button class="btn c-big" data-format="3:4"><b>3:4</b><small>소셜미디어 · 1080×1440</small></button>
+            <button class="btn c-big" data-format="4:3"><b>4:3</b><small>가로 · 1440×1080</small></button>
+            <button class="btn c-big" data-format="A2"><b>A2</b><small>종이 비율 · 1191×1684</small></button>
+          </div>
+        </section>
+
+        <section class="card c-step">
+          <h2><i>2</i>색 바꾸기</h2>
+          <p class="hint c-hint">배경색은 고정이에요. 사각형과 선의 색만 바꿀 수 있어요.</p>
+          <div class="c-colours">
+            <label><span>사각형</span><input type="color" id="c-col-a" /></label>
+            <label><span>선</span><input type="color" id="c-col-b" /></label>
+          </div>
+          <div class="label c-label"><span>겹침 방식</span></div>
+          <div class="segmented" id="c-blend">
+            <button data-blend="multiply">곱하기</button>
+            <button data-blend="difference">차이</button>
+          </div>
+          <div class="palette-presets c-presets" id="c-presets"></div>
+          <button class="btn ghost c-small" id="c-reset-colours">기본 색으로 되돌리기</button>
+        </section>
+
+        <section class="card c-step">
+          <h2><i>3</i>줌아웃 애니메이션</h2>
+          <div class="segmented" id="c-zoom">
+            <button data-zoom="off">끄기</button>
+            <button data-zoom="each scene">장면마다</button>
+            <button data-zoom="whole loop">전체 한 번</button>
+          </div>
+          <p class="hint c-hint" style="margin-top:8px">확대된 상태에서 시작해 점점 멀어져요.</p>
+        </section>
+
+        <section class="card c-step">
+          <h2><i>4</i>글자·스폰서</h2>
+          <label class="toggle"><span>제목, 일시, 장소, 스폰서 로고, QR 보이기<small>끄면 도형만 남아요</small></span><input type="checkbox" id="c-info" checked /><span class="switch"></span></label>
+        </section>
+
+        <section class="card c-step">
+          <h2><i>5</i>저장하기</h2>
+          <button class="btn primary c-rec" id="c-rec">● 녹화 시작</button>
+          <p class="hint c-hint">누르면 지금 장면부터 녹화해요. 끝내고 싶을 때 한 번 더 누르면 MP4가 저장돼요.</p>
+          <button class="btn" id="c-png">현재 화면 PNG로 저장</button>
+          <p class="hint" id="c-out"></p>
+        </section>
+
+        <p class="hint c-foot">아래 타임라인을 끌면 원하는 장면으로 옮길 수 있어요. <button class="mode-link" data-mode-set="dev">개발자 모드</button></p>
       </aside>
     </div>
     <script type="module" src="main/main.js"></script>

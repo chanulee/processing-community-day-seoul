@@ -1,6 +1,6 @@
 // Lab experiments are A2 (420 × 594 mm; 72 dpi = 1191 × 1684 px). A page can instead set window.PCD_FORMAT
-// ('9:16' or '3:4') before the modules load, as index.html does. Export density multiplies the size.
-export const FORMATS = { '9:16': [1080, 1920], '3:4': [1080, 1440] };
+// ('9:16', '3:4', '4:3' or 'A2') before the modules load, as index.html does. Export density multiplies the size.
+export const FORMATS = { '9:16': [1080, 1920], '3:4': [1080, 1440], '4:3': [1440, 1080], A2: [1191, 1684] };
 export const FORMAT = FORMATS[window.PCD_FORMAT] ? window.PCD_FORMAT : null;
 export const [W, H] = FORMAT ? FORMATS[FORMAT] : [1191, 1684];
 export const U = W / 1000;

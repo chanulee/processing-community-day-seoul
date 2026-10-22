@@ -113,7 +113,10 @@ function fitCanvas() {
   const c = holder.querySelector('canvas');
   if (!c) return;
   const stage = $('stage');
-  const s = Math.min((stage.clientWidth - 64) / W, (stage.clientHeight - 64) / H);
+  const cs = getComputedStyle(stage);
+  const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+  const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+  const s = Math.min((stage.clientWidth - padX) / W, (stage.clientHeight - padY) / H);
   c.style.width = `${Math.floor(W * s)}px`;
   c.style.height = `${Math.floor(H * s)}px`;
 }
@@ -269,6 +272,7 @@ function reset() {
 function setPaused(v) {
   run.paused = v;
   $('btn-play').textContent = v ? 'Play' : 'Pause';
+  window.dispatchEvent(new Event('pcd-pause'));
   if (v) { run.p5?.noLoop(); gsap.globalTimeline.pause(); } else { run.p5?.loop(); gsap.globalTimeline.resume(); }
 }
 
@@ -303,6 +307,17 @@ const REC_TYPES = ['video/mp4;codecs=avc1.64002A', 'video/mp4;codecs=avc1.640028
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const yieldNow = () => new Promise((r) => { const ch = new MessageChannel(); ch.port1.onmessage = () => r(); ch.port2.postMessage(0); });
 
+// Both the developer button and the client one show the recording state; label is null when idle.
+function recUI(label) {
+  const dev = $('btn-rec');
+  dev.classList.toggle('rec', label !== null);
+  dev.textContent = label === null ? '● Rec' : `■ ${label}`;
+  const client = $('c-rec');
+  if (!client) return;
+  client.classList.toggle('rec', label !== null);
+  client.textContent = label === null ? '● 녹화 시작' : `■ 녹화 중 ${label} · 눌러서 저장`;
+}
+
 function startRecording() {
   if (run.inst?.fixedStep && window.VideoEncoder && window.VideoFrame) recordStepped();
   else recordLive();
@@ -319,11 +334,10 @@ function recordLive() {
   rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
   rec.onstop = () => download(new Blob(chunks, { type: `video/${ext}` }), `pcd2026-${run.exp.id}-${stamp()}.${ext}`);
   rec.start(250);
-  const btn = $('btn-rec');
-  btn.classList.add('rec');
+  recUI('0s');
   run.recorder = {
     rec,
-    timer: setInterval(() => { btn.textContent = `■ ${((performance.now() - started) / 1000).toFixed(0)}s`; }, 250),
+    timer: setInterval(() => recUI(`${((performance.now() - started) / 1000).toFixed(0)}s`), 250),
   };
 }
 
@@ -343,17 +357,14 @@ async function encoderConfig(w, h) {
 async function recordStepped() {
   const c = holder.querySelector('canvas');
   const { inst, p5: p, api } = run;
-  const btn = $('btn-rec');
   const state = { stop: false };
   run.recorder = state;
-  btn.classList.add('rec');
-  btn.textContent = '■ …';
+  recUI('…');
   const cfg = await encoderConfig(c.width, c.height);
   if (!cfg) {
     console.warn('No H.264 encoder for', c.width, 'x', c.height, '@', recFps, '- recording live instead.');
     run.recorder = null;
-    btn.classList.remove('rec');
-    btn.textContent = '● Rec';
+    recUI(null);
     recordLive();
     return;
   }
@@ -377,7 +388,7 @@ async function recordStepped() {
       encoder.encode(frame, { keyFrame: i % (fps * 2) === 0 }); // a keyframe every 2 s keeps quality from pulsing
       frame.close();
       i++;
-      if (i % 12 === 0) btn.textContent = `■ ${(i / fps).toFixed(0)}s`;
+      if (i % 12 === 0) recUI(`${(i / fps).toFixed(0)}s`);
       // Keep the encoder from running far ahead; give up if it stops draining.
       for (let g = 0; encoder.encodeQueueSize > 8 && !state.stop && !failed; g++) {
         if (g > 2500) failed = new Error('The video encoder stopped responding');
@@ -397,10 +408,9 @@ async function recordStepped() {
     failed = e;
   } finally {
     if (encoder.state !== 'closed') { try { encoder.close(); } catch { /* already closed */ } }
-    if (failed) { console.error('Video export failed:', failed); btn.textContent = 'Rec failed'; await sleep(2500); }
+    if (failed) { console.error('Video export failed:', failed); $('btn-rec').textContent = 'Rec failed'; if ($('c-rec')) $('c-rec').textContent = '녹화 실패 · 다시 시도해 주세요'; await sleep(2500); }
     run.recorder = null;
-    btn.classList.remove('rec');
-    btn.textContent = '● Rec';
+    recUI(null);
     if (!wasPaused && run.p5 === p) p.loop();
   }
 }
@@ -411,17 +421,15 @@ function stopRecording() {
     clearInterval(run.recorder.timer);
     run.recorder.rec.stop();
     run.recorder = null;
-    const btn = $('btn-rec');
-    btn.classList.remove('rec');
-    btn.textContent = '● Rec';
+    recUI(null);
   } else run.recorder.stop = true; // the loop above finishes the file and saves it
 }
 
+const syncFps = () => document.querySelectorAll('#fps-switch [data-fps]').forEach((o) => o.classList.toggle('primary', Number(o.dataset.fps) === recFps));
 document.querySelectorAll('#fps-switch [data-fps]').forEach((b) => {
-  const sync = () => b.classList.toggle('primary', Number(b.dataset.fps) === recFps);
-  b.onclick = () => { if (!run.recorder) { recFps = Number(b.dataset.fps); document.querySelectorAll('#fps-switch [data-fps]').forEach((o) => o.classList.toggle('primary', o === b)); } };
-  sync();
+  b.onclick = () => { if (!run.recorder) { recFps = Number(b.dataset.fps); syncFps(); } };
 });
+syncFps();
 
 $('btn-play').onclick = () => setPaused(!run.paused);
 $('btn-png').onclick = savePNG;
@@ -436,14 +444,20 @@ $('speed').oninput = (e) => {
 // Export size steps: the slider picks an index. 1× is the canvas itself (1080 wide), 4/3 is 2K (1440 wide).
 const DENSITIES = [[1, '1×'], [4 / 3, '2K'], [2, '2×'], [3, '3×']];
 const densityLabel = (d) => `${DENSITIES.find(([v]) => v === d)?.[1] ?? `${d}×`} · ${Math.round(W * d)}×${Math.round(H * d)}`;
+function applyDensity(d, remount = true) {
+  run.density = d;
+  $('density').value = DENSITIES.findIndex(([v]) => v === d);
+  $('density-val').textContent = densityLabel(d);
+  $('meta-size').textContent = `${sizeLabel()} · ${Math.round(W * d)} × ${Math.round(H * d)}px`;
+  const out = $('c-out');
+  if (out) out.textContent = `${Math.round(W * d)} × ${Math.round(H * d)} px · ${recFps} fps · MP4`;
+  if (remount && run.exp) mount(run.exp, true);
+}
 $('density').oninput = (e) => {
   run.density = DENSITIES[Number(e.target.value)][0];
   $('density-val').textContent = densityLabel(run.density);
 };
-$('density').onchange = () => {
-  $('meta-size').textContent = `${sizeLabel()} · ${Math.round(W * run.density)} × ${Math.round(H * run.density)}px`;
-  mount(run.exp, true);
-};
+$('density').onchange = () => applyDensity(run.density);
 
 window.addEventListener('keydown', (e) => {
   if (e.target.matches('input[type=text], select')) return;
@@ -460,8 +474,9 @@ setInterval(() => {
 }, 500);
 
 window.lab = {
+  togglePause: () => setPaused(!run.paused),
   mount: (id) => mount(EXPERIMENTS.find((e) => e.id === id)),
-  set(key, value) { run.P[key] = value; buildParams(run.exp); notify(key); },
+  set(key, value) { run.P[key] = value; buildParams(run.exp); notify(key); window.dispatchEvent(new Event('pcd-mount')); },
   snapshot(width = 560) {
     const c = holder.querySelector('canvas');
     const o = document.createElement('canvas');
@@ -474,7 +489,7 @@ window.lab = {
 
 $('meta-size').textContent = `${sizeLabel()} · ${W}×${H}px`;
 // Pages that set a canvas format (index.html) get a 9:16 / 3:4 switch; the page reloads at the new size.
-document.querySelectorAll('#format-switch [data-format]').forEach((b) => {
+document.querySelectorAll('[data-format]').forEach((b) => {
   b.classList.toggle('primary', b.dataset.format === FORMAT);
   b.onclick = () => {
     if (b.dataset.format === FORMAT) return;
@@ -482,6 +497,77 @@ document.querySelectorAll('#format-switch [data-format]').forEach((b) => {
     location.reload();
   };
 });
+
+// ---------- client / developer mode ----------
+// Client mode (index.html only) is a short guided panel: pick a ratio and colours, then record. It exports at
+// 60 fps and 2× size whatever the developer settings are; developer mode keeps every control.
+const HAS_CLIENT = !!$('c-rec');
+const devExport = { fps: recFps, density: run.density };
+let mode = 'dev';
+function setMode(next, remount = true) {
+  if (!HAS_CLIENT) return;
+  if (run.recorder) stopRecording();
+  if (next === 'client' && mode === 'dev') { devExport.fps = recFps; devExport.density = run.density; }
+  mode = next;
+  document.body.dataset.mode = next;
+  try { localStorage.setItem('pcd-mode', next); } catch { /* storage blocked */ }
+  recFps = next === 'client' ? 60 : devExport.fps;
+  syncFps();
+  applyDensity(next === 'client' ? 2 : devExport.density, remount);
+  if (run.exp) buildParams(run.exp); // the developer panel may be stale after colour edits made in client mode
+  window.dispatchEvent(new Event('resize'));
+}
+if (HAS_CLIENT) {
+  document.querySelectorAll('[data-mode-set]').forEach((b) => { b.onclick = () => setMode(b.dataset.modeSet); });
+  $('c-rec').onclick = () => (run.recorder ? stopRecording() : startRecording());
+  $('c-png').onclick = savePNG;
+  // Colours: background stays as designed, rectangle and stroke are editable.
+  const colours = [$('c-col-a'), $('c-col-b')];
+  colours.forEach((input, i) => {
+    input.oninput = () => { run.P.palette[i + 1] = input.value; notify('palette'); };
+  });
+  const syncColours = () => colours.forEach((input, i) => { input.value = run.P.palette[i + 1]; });
+  window.addEventListener('pcd-mount', syncColours);
+  const presets = $('c-presets');
+  (run.exp?.palettes || window.LAB.experiments[0].palettes || []).forEach((pal) => {
+    const b = el('button', '', pal.slice(1).map((c) => `<span style="background:${c}"></span>`).join(''));
+    b.title = pal.slice(1).join(' · ');
+    b.onclick = () => { run.P.palette[1] = pal[1]; run.P.palette[2] = pal[2]; syncColours(); notify('palette'); };
+    presets.appendChild(b);
+  });
+  const syncBlend = () => document.querySelectorAll('#c-blend [data-blend]').forEach((b) => b.classList.toggle('on', b.dataset.blend === run.P.blend));
+  document.querySelectorAll('#c-blend [data-blend]').forEach((b) => {
+    b.onclick = () => { run.P.blend = b.dataset.blend; syncBlend(); notify('blend'); };
+  });
+  window.addEventListener('pcd-mount', syncBlend);
+  const syncZoom = () => document.querySelectorAll('#c-zoom [data-zoom]').forEach((b) => b.classList.toggle('on', b.dataset.zoom === run.P.zoomAnim));
+  document.querySelectorAll('#c-zoom [data-zoom]').forEach((b) => {
+    b.onclick = () => { run.P.zoomAnim = b.dataset.zoom; syncZoom(); notify('zoomAnim'); };
+  });
+  window.addEventListener('pcd-mount', syncZoom);
+  const info = $('c-info');
+  info.checked = !run.P?.hideInfo;
+  info.onchange = () => window.lab.set('hideInfo', !info.checked);
+  window.addEventListener('pcd-mount', () => { info.checked = !run.P.hideInfo; });
+  $('c-reset-colours').onclick = () => {
+    const base = defaults(run.exp).palette;
+    run.P.palette[1] = base[1];
+    run.P.palette[2] = base[2];
+    syncColours();
+    notify('palette');
+  };
+}
+
 await loadFonts();
 const initial = EXPERIMENTS.find((e) => e.id === location.hash.slice(1)) || EXPERIMENTS[0];
+let savedMode = 'client';
+try { savedMode = localStorage.getItem('pcd-mode') || 'client'; } catch { /* storage blocked */ }
+if (HAS_CLIENT && savedMode === 'client') {
+  mode = 'client';
+  document.body.dataset.mode = 'client';
+  recFps = 60;
+  syncFps();
+  applyDensity(2, false);
+} else document.body.dataset.mode = 'dev';
 mount(initial);
+window.dispatchEvent(new Event('pcd-mount'));

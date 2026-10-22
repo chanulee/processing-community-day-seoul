@@ -1,4 +1,4 @@
-import { W, H, clamp } from '../app/lib/poster.js';
+import { W, H, FORMAT, clamp } from '../app/lib/poster.js';
 import { loadFont } from '../app/lib/outlines.js';
 
 // Every shape is a band of constant thickness along a circular arc:
@@ -74,8 +74,12 @@ const advance = (a, b) => Math.min(ADV, (INK[a].w + INK[b].w) / 2 + PAIR_GAP);
 
 // ---- Title and footer ----------------------------------------------------------------------
 // ABC Areal Regular, -3% tracking, black on white label strips, laid out on a 514 × 917 (9:16) layout
-// and scaled to the canvas. Footer positions count up from the bottom edge, so 3:4 reuses them.
-const S = W / 514;
+// and scaled to the canvas. Footer positions count up from the bottom edge, so 3:4 and A2 reuse them;
+// landscape (4:3) scales by its height and pushes the right-hand boxes out to the right edge.
+const LANDSCAPE = W > H;
+const S = Math.min(W, H) / 514;
+// Landscape is wider than the 514-unit layout: boxes on the right half move out by the extra width.
+const DX = W / S - 514;
 const AREAL = 'Areal, Inter, sans-serif';
 const TITLE = ['Processing Community Day Seoul:', 'Creative Coding', 'in the Age of Vibe Coding'];
 const fy = (y917) => H - (917 - y917) * S; // footer y, measured on the 9:16 layout
@@ -170,14 +174,14 @@ function drawFooter(c, logos, qr, P) {
   const oy = P.footerY;
   textBox(c, FOOT_LEFT, P.timeX + ox, P.timeY + oy, P.textSize, lh, true);
   textBox(c, VENUE, P.venueX + ox, P.venueY + oy, P.textSize, lh, true);
-  textBox(c, HOST, P.hostX + ox, P.hostY + oy, P.textSize, lh, true);
+  textBox(c, HOST, P.hostX + ox + DX, P.hostY + oy, P.textSize, lh, true);
   const pad = 3;
   const imgW = (P.logosW - pad * 2) * S;
   const imgH = imgW * LOGO_RATIO;
   c.fillStyle = '#fff';
-  c.fillRect((P.logosX + ox) * S, fy(P.logosY + oy), P.logosW * S, imgH + pad * 2 * S);
-  if (logos.complete && logos.naturalWidth) c.drawImage(logos, (P.logosX + ox + pad) * S, fy(P.logosY + oy) + pad * S, imgW, imgH);
-  if (qr.complete && qr.naturalWidth) c.drawImage(qr, (P.qrX + ox) * S, fy(P.qrY + oy), P.qrSize * S, P.qrSize * S);
+  c.fillRect((P.logosX + ox + DX) * S, fy(P.logosY + oy), P.logosW * S, imgH + pad * 2 * S);
+  if (logos.complete && logos.naturalWidth) c.drawImage(logos, (P.logosX + ox + DX + pad) * S, fy(P.logosY + oy) + pad * S, imgW, imgH);
+  if (qr.complete && qr.naturalWidth) c.drawImage(qr, (P.qrX + ox + DX) * S, fy(P.qrY + oy), P.qrSize * S, P.qrSize * S);
   c.restore();
 }
 
@@ -224,6 +228,14 @@ const letterParams = () => Object.keys(GLYPHS).flatMap((ch) => SHAPES.filter((sh
   }),
 ]));
 
+// Default Zoom and Zoom centre x for each canvas format.
+const ZOOM = { '9:16': [1.15, -0.11], '3:4': [1.35, -0.03], '4:3': [1, -0.03], A2: [1.4, -0.03] }[FORMAT] || [1.15, -0.11];
+
+// A2 only: some scenes sit at a different Zoom. These are the Zoom each should have when the Zoom slider is at
+// its A2 default; the slider scales all of them together, and the zoom eases between scenes while they morph.
+const SCENE_ZOOM = FORMAT === 'A2' ? { 'PROCESSING/DAY/2026/SEOUL': 1.23 } : {};
+const SCENE_ZOOM_BASE = 1.4;
+
 export default {
   id: 'two-shapes',
   schema: 4, // bump when GLYPHS or the default scenes change, so saved values don't mask them
@@ -240,6 +252,7 @@ export default {
     ['#e6e1d3', '#e03a2f', '#0d2bb8'],
   ],
   params: [
+    { key: 'hideInfo', type: 'toggle', label: 'Hide text + sponsors', note: 'Title, time, venue, host, sponsor logos and QR · H', value: false },
     { type: 'section', label: 'Sequence' },
     { key: 'unit', type: 'select', label: 'Mode', note: 'letters = one glyph at a time · words = whole words morph into each other', options: ['letters', 'words'], value: 'words' },
     { key: 'seq', type: 'text', label: 'Letters', note: 'Available: P R O C E S I N G D A Y U L 2 0 6, plus lowercase a y', value: 'PCDS' },
@@ -251,8 +264,8 @@ export default {
     { key: 'ease', type: 'select', label: 'Ease', options: ['power3.inOut', 'expo.inOut', 'back.inOut(1.6)', 'elastic.out(1,0.6)', 'none'], value: 'power3.inOut' },
 
     { type: 'section', label: 'Form' },
-    { key: 'scale', type: 'range', label: 'Zoom', min: 0.3, max: 6, step: 0.01, value: 1.15 },
-    { key: 'panX', type: 'range', label: 'Zoom centre x', min: -10, max: 1, step: 0.01, value: -0.11 },
+    { key: 'scale', type: 'range', label: 'Zoom', min: 0.3, max: 6, step: 0.01, value: ZOOM[0] },
+    { key: 'panX', type: 'range', label: 'Zoom centre x', min: -10, max: 1, step: 0.01, value: ZOOM[1] },
     { key: 'panY', type: 'range', label: 'Zoom centre y', min: -10, max: 1, step: 0.01, value: 0.04 },
     { key: 'weightA', type: 'range', label: 'Rectangle weight', min: 0.2, max: 2, step: 0.01, value: 1.08},
     { key: 'weightB', type: 'range', label: 'Stroke weight', min: 0.2, max: 4, step: 0.01, value: 1.48},
@@ -264,13 +277,18 @@ export default {
     { key: 'blend', type: 'select', label: 'Overlap', options: ['normal', 'multiply', 'difference'], value: 'difference' },
 
 
+    { type: 'section', label: 'Zoom out', note: 'Starts zoomed in and eases out to the Zoom above' },
+    { key: 'zoomAnim', type: 'select', label: 'Zoom-out animation', note: 'each scene = repeats at the start of every scene · whole loop = once per loop', options: ['off', 'each scene', 'whole loop'], value: 'off' },
+    { key: 'zoomFrom', type: 'range', label: 'Start zoom', note: 'Times the Zoom at the start', min: 1, max: 4, step: 0.05, value: 1.6, unit: '×' },
+    { key: 'zoomDur', type: 'range', label: 'Zoom-out duration', note: 'Each scene only: seconds from the scene start', min: 0.2, max: 10, step: 0.05, value: 2.5, unit: 's' },
+    { key: 'zoomEase', type: 'select', label: 'Zoom-out ease', options: ['power2.out', 'power3.inOut', 'expo.out', 'none'], value: 'power2.out' },
+
     { type: 'section', label: 'Colour' },
     { key: 'palette', type: 'palette', label: 'Palette · bg / rectangle / stroke', value: ['#e6e1d3', '#e03a2f', '#0d2bb8'] },
-    { key: 'info', type: 'select', label: 'Title + footer', note: 'Title on top; time, place, host and sponsors at the bottom', options: ['on', 'off'], value: 'on' },
     ...boxParams(),
 
     { type: 'group', label: 'Advanced typo', note: 'The drawn letters: spacing, picking one letter to edit, and every shape of every letter' },
-    { key: 'leading', type: 'range', label: 'Line spacing', note: 'Multi-line scenes', min: 0.6, max: 1.6, step: 0.01, value: 0.93 },
+    { key: 'leading', type: 'range', label: 'Line spacing', note: 'Multi-line scenes', min: 0.6, max: 1.6, step: 0.01, value: FORMAT === '4:3' ? 0.83 : 0.93 },
     { key: 'track', type: 'range', label: 'Letter spacing', min: 0.4, max: 1.6, step: 0.01, value: 1 },
     { type: 'section', label: 'Edit letters' },
     { key: 'edit', type: 'select', label: 'Show', note: 'Pick a letter to freeze on it while you tune its sliders below; play runs the sequence and interpolates between your shapes', options: ['play', ...Object.keys(GLYPHS)], value: 'play' },
@@ -340,8 +358,11 @@ export default {
       const lh = LINE * P.leading;
       // Scenes sit between the title and the footer when those are on.
       const px = REF_W / W; // sketch units per canvas px
-      const bandTop = P.info === 'on' ? TITLE_BOTTOM : 0;
-      const bandBot = P.info === 'on' ? FOOT_TOP : H;
+      // Only 9:16 grows to the full height when the text is hidden; the other formats keep the graphic where it is,
+      // so Zoom and Zoom centre stay as tuned. Landscape always has the whole canvas, the text sits on top of it.
+      const fitFull = LANDSCAPE || (P.hideInfo && (FORMAT === '9:16' || !FORMAT));
+      const bandTop = fitFull ? 0 : TITLE_BOTTOM;
+      const bandBot = fitFull ? H : FOOT_TOP;
       const shiftY = ((bandTop + bandBot) / 2 - H / 2) * px;
       const f = Math.min(1, (REF_W * 0.9) / Math.max(...rows.map((r) => r.span)), ((bandBot - bandTop) * px * 0.9) / (lines.length * lh));
       const out = [];
@@ -464,6 +485,25 @@ export default {
     buildTimeline();
 
     const lerp = (a, b, t) => a + (b - a) * t;
+    // Multiplier on Zoom for the scene on screen (1 where a scene has no override). Labels keep the lowercase a / y glyphs, so match upper-cased.
+    const sceneMul = (i) => (SCENE_ZOOM[labels[i].toUpperCase()] ?? SCENE_ZOOM_BASE) / SCENE_ZOOM_BASE;
+    // Zoom-out animation: a multiplier that starts at zoomFrom and eases down to 1.
+    function animMul() {
+      if (P.zoomAnim === 'off' || !scenes.length) return 1;
+      const step = stepLen();
+      const span = P.zoomAnim === 'whole loop' ? total() : Math.max(0.001, P.zoomDur);
+      const t = P.zoomAnim === 'whole loop' ? time : time - Math.floor(time / step) * step;
+      return lerp(P.zoomFrom, 1, api.gsap.parseEase(P.zoomEase)(clamp(t / span)));
+    }
+    function zoomMul() {
+      if (!scenes.length || !Object.keys(SCENE_ZOOM).length) return 1;
+      const step = stepLen();
+      const n = Math.floor(time / step);
+      const idx = n % scenes.length;
+      const spread = P.stagger * 4;
+      const e = clamp((time - n * step - P.hold) / Math.max(0.001, P.dur + P.lag + spread));
+      return lerp(sceneMul(idx), sceneMul((idx + 1) % scenes.length), e);
+    }
     // Current frame: a whole scene while holding, the planned pieces while morphing.
     function frameShapes() {
       if (!scenes.length) return [];
@@ -490,34 +530,59 @@ export default {
     const total = () => stepLen() * Math.max(1, scenes.length);
     const ui = document.createElement('div');
     ui.className = 'timeline';
-    ui.innerHTML = '<button data-go="-1" title="Previous scene ( [ )">◀</button><div class="tl-track"><div class="tl-segs"></div><div class="tl-head"></div></div><button data-go="1" title="Next scene ( ] )">▶</button><span class="tl-label"></span>';
-    document.getElementById('stage').appendChild(ui);
+    ui.innerHTML = '<button class="tl-play" title="Play / pause (Space)"></button><button data-go="-1" title="Previous scene ( [ )">◀</button><div class="tl-track"><div class="tl-segs"></div><div class="tl-head"></div></div><button data-go="1" title="Next scene ( ] )">▶</button><span class="tl-time"></span>';
+    const stage = document.getElementById('stage');
+    stage.appendChild(ui);
+    const playBtn = ui.querySelector('.tl-play');
+    const syncPlay = () => { playBtn.textContent = api.paused ? '▶' : '❚❚'; };
+    playBtn.onclick = () => window.lab.togglePause();
+    window.addEventListener('pcd-pause', syncPlay);
+    syncPlay();
+    // When paused nothing is drawn, so every seek has to ask for one frame itself.
+    const refresh = () => { if (api.paused) p.redraw(); };
+    const fmtTime = (t) => { const s = Math.floor(t); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
     const track = ui.querySelector('.tl-track');
     const segs = ui.querySelector('.tl-segs');
     const head = ui.querySelector('.tl-head');
-    const label = ui.querySelector('.tl-label');
+    const timeEl = ui.querySelector('.tl-time');
     const current = () => Math.floor(time / stepLen()) % Math.max(1, scenes.length);
-    const jump = (i) => { const n = scenes.length; time = (((i % n) + n) % n) * stepLen(); history.length = 0; };
+    const jump = (i) => { const n = scenes.length; time = (((i % n) + n) % n) * stepLen(); history.length = 0; refresh(); };
     function renderSegs() {
       segs.innerHTML = '';
       labels.forEach((l, i) => {
         const b = document.createElement('button');
         b.textContent = l;
         b.title = l;
-        b.onclick = (e) => { e.stopPropagation(); jump(i); };
+        b.dataset.i = i;
         segs.appendChild(b);
       });
       ui.hidden = scenes.length < 2;
+      stage.classList.toggle('has-timeline', !ui.hidden);
+      window.dispatchEvent(new Event('resize'));
     }
     ui.querySelectorAll('[data-go]').forEach((b) => { b.onclick = () => jump(current() + Number(b.dataset.go)); });
     let scrubbing = false;
     const scrub = (e) => {
       const r = track.getBoundingClientRect();
       time = clamp((e.clientX - r.left) / r.width) * total() * 0.9999;
+      refresh();
     };
-    track.addEventListener('pointerdown', (e) => { if (e.target.closest('button')) return; scrubbing = true; track.setPointerCapture(e.pointerId); scrub(e); });
+    // Press anywhere on the track to scrub, scene buttons included. A press that barely moves on a scene
+    // button jumps to the start of that scene instead.
+    let downX = 0;
+    let downScene = null;
+    track.addEventListener('pointerdown', (e) => {
+      downX = e.clientX;
+      downScene = e.target.closest('button')?.dataset.i ?? null;
+      scrubbing = true;
+      track.setPointerCapture(e.pointerId);
+      scrub(e);
+    });
     track.addEventListener('pointermove', (e) => { if (scrubbing) scrub(e); });
-    track.addEventListener('pointerup', () => { scrubbing = false; });
+    track.addEventListener('pointerup', (e) => {
+      scrubbing = false;
+      if (downScene !== null && Math.abs(e.clientX - downX) < 4) jump(Number(downScene));
+    });
     const keys = (e) => {
       if (e.target.matches('input, select, textarea')) return;
       if (e.key === '[') jump(current() - 1);
@@ -536,8 +601,11 @@ export default {
     }
 
     return {
+      keyPressed(e) {
+        if (e.key === 'h' || e.key === 'H') window.lab.set('hideInfo', !P.hideInfo);
+      },
       onParam(key) {
-        if (['seq', 'dur', 'hold', 'lag', 'ease', 'edit', 'unit', 'words', 'stagger', 'track', 'leading', 'info'].includes(key) || /^[A-Za-z0-9]_[abcd]/.test(key)) { buildTimeline(); renderSegs(); }
+        if (['seq', 'dur', 'hold', 'lag', 'ease', 'edit', 'unit', 'words', 'stagger', 'track', 'leading', 'hideInfo'].includes(key) || /^[A-Za-z0-9]_[abcd]/.test(key)) { buildTimeline(); renderSegs(); }
         if (['trails', 'trailMode', 'clear', 'palette', 'scale', 'panX', 'panY'].includes(key)) {
           history.length = 0;
           clearLayer();
@@ -546,7 +614,9 @@ export default {
       fixedStep: true, // renders the same at any frame step, so the exporter can step it at 120 fps
       dispose() {
         ui.remove();
+        stage.classList.remove('has-timeline');
         window.removeEventListener('keydown', keys);
+        window.removeEventListener('pcd-pause', syncPlay);
       },
       draw() {
         const [bg, colA, colB] = P.palette;
@@ -556,7 +626,7 @@ export default {
         head.style.left = `${(time / total()) * 100}%`;
         const ci = current();
         segs.querySelectorAll('button').forEach((b, i) => b.classList.toggle('on', i === ci));
-        label.textContent = labels[ci] || '';
+        timeEl.textContent = `${fmtTime(time)} / ${fmtTime(total())}`;
         const snapshot = () => frameShapes().map((q) => ({ kind: q.kind, band: { ...q.band } }));
         // Rectangles first, then strokes on top with the overlap blend.
         // mask = true paints the plain coverage of the shapes (no colour, no blend).
@@ -572,11 +642,12 @@ export default {
         ctx.fillStyle = bg;
         ctx.fillRect(0, 0, W, H);
 
-        const k = (W / REF_W) * P.scale;
+        const scale = P.scale * zoomMul() * animMul();
+        const k = (W / REF_W) * scale;
         // Zoom about the chosen centre, which stays fixed on the poster.
         const zx = W * P.panX;
         const zy = H * P.panY;
-        const zoom = (c) => c.translate(zx - zx * P.scale, zy - zy * P.scale);
+        const zoom = (c) => c.translate(zx - zx * scale, zy - zy * scale);
 
         if (P.trailMode === 'keep') {
           // 1. Veil the layer back towards the background.
@@ -625,7 +696,7 @@ export default {
         ctx.globalAlpha = 1;
         ctx.globalCompositeOperation = 'source-over';
 
-        if (P.info === 'on') {
+        if (!P.hideInfo) {
           drawTitle(ctx, P);
           drawFooter(ctx, logos, qr, P);
         }
